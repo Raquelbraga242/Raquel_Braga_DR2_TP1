@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Lista de Eventos{% endblock %}
+
+{% block content %}
+
+<h2>Eventos cadastrados</h2>
+
+{% for evento in eventos %}
+    <h3>{{ evento.name }}</h3>
+    <p>Data: {{ evento.data }}</p>
+    <p>Organizador: {{ evento.organizador_id }}</p>
+    <p><a href="/eventos-html/{{ evento.id }}">Ver detalhes</a></p>
+{% endfor %}
+
+{% endblock %}
