@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from routes import events_router
+from user_routes import users_router
+
 
 app = FastAPI()
 
@@ -12,3 +14,4 @@ async def welcome() -> dict:
 
 
 app.include_router(events_router)
+app.include_router(users_router)
