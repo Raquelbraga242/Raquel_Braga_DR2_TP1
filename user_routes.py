@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Form
+from fastapi import APIRouter, Depends, HTTPException, Form, Request
 from fastapi.security import OAuth2PasswordRequestForm
 
 from users import User, users_list, hash_password, verify_password
-from auth import create_access_token
+from auth import create_access_token, check_login_rate_limit
 
 
 users_router = APIRouter()
@@ -27,9 +27,13 @@ async def signup(user: User) -> dict:
 
 @users_router.post("/login")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     mfa_code: str = Form(None)
 ) -> dict:
+    ip = request.client.host
+    check_login_rate_limit(ip)
+
     for user in users_list:
         if user.username == form_data.username:
 

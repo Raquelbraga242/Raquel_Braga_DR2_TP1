@@ -1,13 +1,41 @@
+import re
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
+
 from models import Event, EventResponse
-from database import events_list
-from auth import get_current_user
+from database import events_list, inscricoes_list, comentarios_list
+from auth import get_current_user, check_inscricao_ownership
 
 
 events_router = APIRouter()
 
 templates = Jinja2Templates(directory="templates")
+
+
+event_requests = {}
+
+
+def check_event_rate_limit(ip: str):
+    now = datetime.now(timezone.utc)
+
+    if ip not in event_requests:
+        event_requests[ip] = []
+
+    event_requests[ip] = [
+        request_time
+        for request_time in event_requests[ip]
+        if now - request_time < timedelta(minutes=1)
+    ]
+
+    if len(event_requests[ip]) >= 30:
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas requisições. Tente novamente mais tarde."
+        )
+
+    event_requests[ip].append(now)
 
 
 @events_router.post("/eventos", response_model=EventResponse)
@@ -20,9 +48,27 @@ async def add_event(
 
 
 @events_router.get("/eventos")
-async def retrieve_events() -> dict:
+async def retrieve_events(request: Request) -> dict:
+    ip = request.client.host
+    check_event_rate_limit(ip)
+
     return {
         "events": events_list
+    }
+
+
+@events_router.get("/eventos/busca")
+async def search_events(nome: str) -> dict:
+    if not re.fullmatch(r"[a-zA-ZÀ-ÿ0-9 ]+", nome):
+        raise HTTPException(
+            status_code=400,
+            detail="Termo de busca inválido."
+        )
+
+    query = "SELECT * FROM eventos WHERE nome = '" + nome + "'"
+
+    return {
+        "query": query
     }
 
 
@@ -65,6 +111,37 @@ async def edit_event(
     )
 
 
+@events_router.get("/inscricoes/{inscricao_id}")
+async def get_inscricao(
+    inscricao_id: int,
+    current_user=Depends(get_current_user)
+):
+    for inscricao in inscricoes_list:
+        if inscricao["id"] == inscricao_id:
+            check_inscricao_ownership(inscricao, current_user)
+
+            return {
+                "inscricao": inscricao
+            }
+
+    raise HTTPException(
+        status_code=404,
+        detail="Inscrição não encontrada."
+    )
+
+
+@events_router.post("/eventos/{evento_id}/comentarios")
+async def add_comentario(evento_id: int, comentario: str):
+    comentarios_list.append({
+        "evento_id": evento_id,
+        "comentario": comentario
+    })
+
+    return {
+        "message": "Comentário cadastrado com sucesso."
+    }
+
+
 @events_router.get("/eventos-html")
 async def eventos_html(request: Request):
     return templates.TemplateResponse(
@@ -81,7 +158,10 @@ async def evento_html(request: Request, evento_id: int):
             return templates.TemplateResponse(
                 request=request,
                 name="evento.html",
-                context={"evento": evento}
+                context={
+                    "evento": evento,
+                    "comentarios": comentarios_list
+                }
             )
 
     return {

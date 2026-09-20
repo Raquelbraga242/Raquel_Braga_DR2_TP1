@@ -9,6 +9,12 @@
 <p>Data: {{ evento.data }}</p>
 <p>Organizador: {{ evento.organizador_id }}</p>
 
+<h3>Comentários</h3>
+
+{% for comentario in comentarios %}
+    <p>{{ comentario.comentario }}</p>
+{% endfor %}
+
 <p><a href="/eventos-html">Voltar para eventos</a></p>
 
 {% endblock %}

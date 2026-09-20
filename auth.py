@@ -14,6 +14,30 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
+login_attempts = {}
+
+
+def check_login_rate_limit(ip: str):
+    now = datetime.now(timezone.utc)
+
+    if ip not in login_attempts:
+        login_attempts[ip] = []
+
+    login_attempts[ip] = [
+        attempt
+        for attempt in login_attempts[ip]
+        if now - attempt < timedelta(minutes=1)
+    ]
+
+    if len(login_attempts[ip]) >= 5:
+        raise HTTPException(
+            status_code=429,
+            detail="Muitas tentativas de login. Tente novamente mais tarde."
+        )
+
+    login_attempts[ip].append(now)
+
+
 def create_access_token(user):
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
@@ -62,3 +86,13 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         status_code=401,
         detail="Usuário não encontrado."
     )
+
+
+def check_inscricao_ownership(inscricao, current_user):
+    if inscricao["usuario_id"] != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Você não tem acesso a esta inscrição."
+        )
+
+    return inscricao
